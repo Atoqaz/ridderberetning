@@ -1,19 +1,28 @@
+from time import time, perf_counter
+from timeit import timeit
+
+# start = time()
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from pdfminer.pdfpage import PDFPage
-from pdfminer.high_level import extract_text, extract_pages
-
+from pdfminer.high_level import extract_text
 
 DIR = Path(__file__).parent
 
 # filename = DIR.joinpath("Statskalender/Statskalender 1950.pdf")
-filename = DIR.joinpath("Statskalender/Matlab Cheatsheet.pdf")
-filename = DIR.joinpath("Statskalender/sample.pdf")
+# filename = DIR.joinpath("Statskalender/Matlab Cheatsheet.pdf")
+# filename = DIR.joinpath("Statskalender/sample.pdf")
 
 
-location = np.array([[1, 2, 3], [4, 5, 6]])
+# text = extract_text("Statskalender/sample.pdf")
+start = perf_counter()
+# text = extract_text("Statskalender/Statskalender 1950.pdf") # 458 sec
+text = extract_text("Statskalender/sample.pdf")
 
-test = np.append(location, [[7, 8, 9]], axis=0)
-print(test)
+end = perf_counter()
+print(round((end - start), 4), "sec")
+print(repr(text))
+print(text)
 
