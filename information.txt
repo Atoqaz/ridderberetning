@@ -1,0 +1,5 @@
+Link to the statskalender:
+https://bibliotek.dis-danmark.dk/cgi-bin/koha/opac-search.pl?idx=kw&q=hof%20og%20statskalender&offset=80&sort_by=title_asc&count=20
+
+Greenland city names:
+https://de.wikipedia.org/wiki/Liste_der_Siedlungen_in_Gr%C3%B6nland?fbclid=IwAR1N_Q4v4A463GqTQWKS-k61fT_id0Dv0mhh64wS63bZE5tTxBkeojceQdM
