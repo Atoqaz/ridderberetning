@@ -26,9 +26,9 @@ def main():
     for filename in tqdm(pdf_files):
         filename_txt = filename.replace(".pdf", ".txt")
         if filename_txt not in txt_files:
-            print(filename)
             pdf_to_txt(PDF_DIR.joinpath(filename), TXT_DIR.joinpath(filename_txt))
 
 
 if __name__ == "__main__":
     main()
+

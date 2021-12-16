@@ -1,4 +1,3 @@
-^PDF PAGE SPLIT^^page^0^
 Riddere af Dannebrogsordenen.
 
 [200—204]
@@ -253,5 +252,3 @@ Garnisons Kirke, Kbhvn.
 67
 
 ♀
-
-C:\Users\Atoqaz\Files\GitHub\ridderberetning>

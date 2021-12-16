@@ -16,13 +16,15 @@ DIR = Path(__file__).parent
 # filename = DIR.joinpath("Statskalender/sample.pdf")
 
 
+# # text = extract_text("Statskalender/sample.pdf")
+# start = perf_counter()
+# # text = extract_text("Statskalender/Statskalender 1950.pdf") # 458 sec
 # text = extract_text("Statskalender/sample.pdf")
-start = perf_counter()
-# text = extract_text("Statskalender/Statskalender 1950.pdf") # 458 sec
-text = extract_text("Statskalender/sample.pdf")
 
-end = perf_counter()
-print(round((end - start), 4), "sec")
-print(repr(text))
-print(text)
+# end = perf_counter()
+# print(round((end - start), 4), "sec")
+# print(repr(text))
+# print(text)
 
+sentence = '(S.N.3.), (S.V.22.), Overretssagf., Kbhvn.'
+print()
