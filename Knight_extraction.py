@@ -9,11 +9,13 @@ The list should contain the following, that matches a city name:
 """
 Samlet arbejdstid:
 12 dec: 200 min
-16 dec: 10 min
+16 dec: 70 min
+18 dec: 120 min
 
 Improvements:
-    - Convert pdf to txt and store it for further searches.
-    -> Check if txt exist, and use it instead of pdf.
+    -> Split pdf in columns, as to not to get interferrence between them.
+        - This has to be done dynamically for each page, as separater position varies
+    -> Page title (line 1) in output 
 
 Thinks to mind:
     - Abbreviations (København -> Kbhvn)
@@ -103,7 +105,10 @@ def main():
     cities = load_seachwords(filepath=filepath_cities)
     # filepath_statskalender = DIR.joinpath("Statskalender/sample.pdf")
     # filepath_statskalender = DIR.joinpath("Statskalender/Matlab Cheatsheet.pdf")
-    filepath_statskalender = DIR.joinpath("Statskalender_txt/Statskalender 1950.txt")
+    # filepath_statskalender = DIR.joinpath("Statskalender_txt/Statskalender 1950.txt")
+    filepath_statskalender = DIR.joinpath(
+        "Statskalender_txt/Statskalender 1950-pages-100.txt"
+    )
 
     pages = load_and_split_txt(filepath_statskalender)
     df_matches = search_pages(pages=pages, searchwords=cities)

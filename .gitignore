@@ -1,6 +1,7 @@
 Statskalender/*.pdf
 Statskalender_txt/*.txt
 Statskalender_results/*.xlsx
+test/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

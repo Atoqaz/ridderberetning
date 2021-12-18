@@ -8,10 +8,11 @@ import pandas as pd
 from pathlib import Path
 from pdfminer.pdfpage import PDFPage
 from pdfminer.high_level import extract_text
+from pdfminer.layout import LAParams
 
 DIR = Path(__file__).parent
 
-# filename = DIR.joinpath("Statskalender/Statskalender 1950.pdf")
+filename = DIR.joinpath("Statskalender/Statskalender 1950-pages-100.pdf")
 # filename = DIR.joinpath("Statskalender/Matlab Cheatsheet.pdf")
 # filename = DIR.joinpath("Statskalender/sample.pdf")
 
@@ -26,5 +27,13 @@ DIR = Path(__file__).parent
 # print(repr(text))
 # print(text)
 
-sentence = '(S.N.3.), (S.V.22.), Overretssagf., Kbhvn.'
-print()
+# sentence = '(S.N.3.), (S.V.22.), Overretssagf., Kbhvn.'
+# print()
+laparams = LAParams()
+print(laparams)
+
+# from pdfminer.high_level import extract_pages
+
+# for page_layout in extract_pages(filename):
+#     for element in page_layout:
+#         print(element)
