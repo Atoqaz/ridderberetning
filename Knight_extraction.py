@@ -11,6 +11,7 @@ Samlet arbejdstid:
 12 dec: 200 min
 16 dec: 70 min
 18 dec: 120 min
+19 dec: 90 min
 
 Improvements:
     -> Split pdf in columns, as to not to get interferrence between them.
@@ -43,7 +44,7 @@ def load_seachwords(filepath: Path):
     return cities
 
 
-def load_and_split_txt(filepath: Path):
+def load_and_split_txt(filepath: Path, page_limit: list = None):
     pages = {}
     page_content = ""
     page_number = 2
@@ -51,15 +52,40 @@ def load_and_split_txt(filepath: Path):
         for line in file:
             if "\x0c" in line:  # Symbol used for page ending
                 pages[page_number] = page_content
-                page_content = ""
+                page_content = line.split("\x0c")[1]
                 page_number += 1
             else:
                 page_content += line
+    if page_limit == None:
+        return pages
+    else:
+        for key in list(pages.keys()):
+            if (key < page_limit[0]) or (key > page_limit[1]):
+                del pages[key]
+        return pages
+
+
+def reorder_sentences(pages: dict):
+    """ The order of the sentences/lines are not given correct, and thus some logic is applied to fix it 
+        1) Sentence can start with "xx. yy. zz." where x,y,z is a number
+        2) Sentence can start with "— "
+        3) Sentence ends with ".\n"
+        Some words stand alone, and should be connected to the next sentence.
+    """
+    # for page_number, page in pages.items():
+    #     pass
     return pages
 
 
-def search_pages(pages: dict, searchwords: np.array):
-    columns = ["Pagenumber", "Sentence Location %", "Word", "Sentence"]
+def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
+    columns = [
+        "Page Title",
+        "Header Pages",
+        "Pagenumber",
+        "Sentence Location %",
+        "Word",
+        "Sentence",
+    ]
     matching_words_info = np.empty(
         (0, len(columns))
     )  # Initialize array of size: rows, columns
@@ -67,14 +93,24 @@ def search_pages(pages: dict, searchwords: np.array):
     for page_number, page in tqdm(pages.items()):
         sentences = page.split("\n\n")
         number_of_sentences_on_page = len(sentences)
+        title = ""
+        header_pages = ""
+
         for sentence_index, sentence in enumerate(sentences):
             sentence = sentence.lower()
+            if sentence_index <= header_rows_max:
+                if (("[" in sentence) or ("]" in sentence)) and header_pages == "":
+                    header_pages = sentence
+                elif title == "":
+                    title = sentence
             for word in searchwords:
                 if word in sentence:
                     matching_words_info = np.append(
                         matching_words_info,
                         [
                             [
+                                title,
+                                header_pages,
                                 page_number,
                                 round(
                                     sentence_index / number_of_sentences_on_page * 100
@@ -87,8 +123,8 @@ def search_pages(pages: dict, searchwords: np.array):
                     )
 
     df_matches = pd.DataFrame(matching_words_info, columns=columns,)
-    df_matches = df_matches.astype({columns[0]: "int32"})
-    df_matches = df_matches.sort_values(by=[columns[0], columns[1]], ascending=True)
+    df_matches = df_matches.astype({columns[2]: "int32"})
+    df_matches = df_matches.sort_values(by=[columns[2], columns[3]], ascending=True)
     return df_matches
 
 
@@ -99,22 +135,20 @@ def write_df_to_excel(filepath: Path, df: pd.DataFrame, sheet_name: str):
 
 def main():
     filepath_cities = DIR.joinpath("Bynavne.xlsx")
-    # filepath_cities = DIR.joinpath("sample.xlsx")
-    # filepath_cities = DIR.joinpath("sample_advanced.xlsx")
-
     cities = load_seachwords(filepath=filepath_cities)
-    # filepath_statskalender = DIR.joinpath("Statskalender/sample.pdf")
-    # filepath_statskalender = DIR.joinpath("Statskalender/Matlab Cheatsheet.pdf")
-    # filepath_statskalender = DIR.joinpath("Statskalender_txt/Statskalender 1950.txt")
     filepath_statskalender = DIR.joinpath(
         "Statskalender_txt/Statskalender 1950-pages-100.txt"
+        # "Statskalender_txt/Statskalender 1950.txt"
     )
 
-    pages = load_and_split_txt(filepath_statskalender)
-    df_matches = search_pages(pages=pages, searchwords=cities)
-    write_df_to_excel(
-        filepath=RESULT_DIR.joinpath("1950.xlsx"), df=df_matches, sheet_name="1950"
-    )
+    pages = load_and_split_txt(filepath_statskalender)  # , page_limit=[48, 245])
+    pages = reorder_sentences(pages=pages)
+    print(pages[2])
+
+    # df_matches = search_pages(pages=pages, searchwords=cities)
+    # write_df_to_excel(
+    #     filepath=RESULT_DIR.joinpath("1950.xlsx"), df=df_matches, sheet_name="1950"
+    # )
 
 
 if __name__ == "__main__":

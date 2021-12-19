@@ -39,18 +39,16 @@ def check_settings():
     line_margins = np.arange(0.5, 0.7, 0.05)  # Default 0.5
     line_margin = 0.6  # Default 0.5
     # <LAParams: char_margin=2.0, line_margin=0.5, word_margin=0.1 all_texts=False>
-    # print(boxes_flows)
 
     # for line_margin in tqdm(line_margins):
-    #     for box_flow in boxes_flows:
-    layout_settings = {"line_margin": line_margin}
-    filepath_txt = DIR.joinpath(f"txt_vars_line_{str(round(line_margin, 3))}.txt")
-    # print(filepath_txt)
-    pdf_to_txt(
-        filepath_pdf=filename_pdf,
-        filepath_txt=filepath_txt,
-        layout_settings=layout_settings,
-    )
+    #     layout_settings = {"line_margin": line_margin}
+    #     filepath_txt = DIR.joinpath(f"txt_vars_line_{str(round(line_margin, 3))}.txt")
+    #     # print(filepath_txt)
+    #     pdf_to_txt(
+    #         filepath_pdf=filename_pdf,
+    #         filepath_txt=filepath_txt,
+    #         layout_settings=layout_settings,
+    #     )
 
 
 def main():
