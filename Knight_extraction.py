@@ -67,10 +67,16 @@ def load_and_split_txt(filepath: Path, page_limit: list = None):
 
 def reorder_sentences(pages: dict):
     """ The order of the sentences/lines are not given correct, and thus some logic is applied to fix it 
-        1) Sentence can start with "xx. yy. zz." where x,y,z is a number
+        1) Sentence can start with "xx. " where x is a digit. 
+            Count number of occurences.
         2) Sentence can start with "— "
         3) Sentence ends with ".\n"
         Some words stand alone, and should be connected to the next sentence.
+        If sentences are close (i.e. not seperated by \n\n), then they should have priority.
+
+        # Dynamic array of every sentence. 
+        # Sentence should have state (Start, End)
+        # Sentence should have indication of 
     """
     # for page_number, page in pages.items():
     #     pass
