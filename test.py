@@ -15,11 +15,13 @@ import re
 filename = DIR.joinpath("test/txt_vars_line_0.6.txt")
 
 
-with open(filename) as file:
+with open(filename, "r", encoding="utf-8") as file:
     count = 0
     for line in file:
-        # result = bool(re.search("^[\d]+[.][\s]", line))  # xxx
-        result = bool(re.search("^(â€”)[\s]", line))  # Line
+        result = bool(
+            re.search("^[\d\s]+.\s", line)
+        )  # xxx # exception if "1.),"" Total 43 correct
+        # result = bool(re.search("^—\s", line))  # Line
         # result = bool(re.search("[.][\\n]$", line))  # dot
         if result:
             count += 1
