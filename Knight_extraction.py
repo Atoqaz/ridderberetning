@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
+import re
 
 DIR = Path(__file__).parent
 RESULT_DIR = DIR.joinpath("Statskalender_results")
@@ -81,6 +82,35 @@ def reorder_sentences(pages: dict):
     # for page_number, page in pages.items():
     #     pass
     return pages
+
+
+def sentence_type(sentence: str):
+    """ Detect type of sentence, so one can act on it """
+    num1 = bool(
+        re.search("^[\d\s]+[.][^)]", sentence)
+    )  # Starts with a number and period
+    num2 = bool(
+        re.search("^[\d\s]+[\.][\d\s]+", sentence)
+    )  # Starts with 2 numbers and period
+    num3 = bool(
+        re.search("^[\d\s]+[\.][\d\s]+[\.][\d\s]+", sentence)
+    )  # Starts with 3 numbers and period
+    hyphen = bool(re.search("^—\s", sentence))  # Starts with "— "
+    period = bool(re.search("[.][\\n]$", sentence))  # Ends with ".\n"
+
+    if num1:
+        if num3:
+            return "num3"
+        elif num2:
+            return "num2"
+        else:
+            return "num1"
+    elif hyphen:
+        return "hyphen"
+    elif period:
+        return "period"
+    else:
+        return "middle"
 
 
 def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
