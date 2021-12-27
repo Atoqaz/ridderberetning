@@ -12,6 +12,9 @@ Samlet arbejdstid:
 16 dec: 70 min
 18 dec: 120 min
 19 dec: 90 min
+27 dec: 240 min
+
+Total: 12 h 0 min
 
 Improvements:
     -> Split pdf in columns, as to not to get interferrence between them.
@@ -20,7 +23,7 @@ Improvements:
 
 Thinks to mind:
     - Abbreviations (København -> Kbhvn)
-    - Linesplit (-\n)
+    - Incorrect reading of words (Hongkong -> Honekong)
 """
 
 
@@ -29,11 +32,14 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 import re
+import regex
+import os
 
 DIR = Path(__file__).parent
 RESULT_DIR = DIR.joinpath("Statskalender_results")
+TXT_DIR = DIR.joinpath("Statskalender_txt")
 OUTPUT_FILE = DIR.joinpath("Result.xlsx")
-Calender = "1950"
+EXACT_MATCH = True  # Not case sensitive
 
 
 def load_seachwords(filepath: Path):
@@ -168,12 +174,14 @@ def sentence_type(line: str):
     return start, end  # , left_parentheses - right_parentheses
 
 
-def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
+def search_pages(
+    pages: dict, searchwords: np.array, header_rows_max: int = 5, exact_match=False
+):
     columns = [
         "Page Title",
         "Header Pages",
         "Pagenumber",
-        "Sentence Location %",
+        "Sentence Quarter",
         "Word",
         "Sentence",
     ]
@@ -196,21 +204,24 @@ def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
                     title = sentence
 
             for word in searchwords:
-                if word in sentence:
+                word_in_sentence = bool(regex.search(f"(?:{word}){{e<=1}}", sentence))
+                if (exact_match and word in sentence) or (
+                    not exact_match and word_in_sentence
+                ):
+                    sentence_location = round(
+                        sentence_index / number_of_sentences_on_page * 100
+                    )
+                    if sentence_location <= 25:
+                        location = 1
+                    elif sentence_location <= 50:
+                        location = 2
+                    elif sentence_location <= 75:
+                        location = 3
+                    else:
+                        location = 4
                     matching_words_info = np.append(
                         matching_words_info,
-                        [
-                            [
-                                title,
-                                header_pages,
-                                page_number,
-                                round(
-                                    sentence_index / number_of_sentences_on_page * 100
-                                ),
-                                word,
-                                sentence,
-                            ]
-                        ],
+                        [[title, header_pages, page_number, location, word, sentence,]],
                         axis=0,
                     )
 
@@ -226,8 +237,48 @@ def write_df_to_excel(filepath: Path, df: pd.DataFrame, sheet_name: str):
 
 
 def main():
+    txt_files = [x for x in os.listdir(TXT_DIR) if ".txt" in x]
+    for file_index, filename in enumerate(txt_files, 1):
+        if ".txt" in filename:
+            print(f"[{file_index}] {filename}")
+
+    # Select file
+    while True:
+        try:
+            selected_file_index = input("Select file: ")
+            selected_file = txt_files[int(selected_file_index) - 1]
+            filepath = TXT_DIR.joinpath(selected_file)
+            print(f"File selected: {selected_file}")
+            break
+        except IndexError:
+            print("\nNumber not in list. Please try again.\nPress ctrl + C to exit.\n")
+
+    # Select page numbers
+    pagenumber_min = int(input("Select starting pdf pagenumber: "))
+    pagenumber_max = int(input("Select ending pdf pagenumber: "))
+    page_limit = [pagenumber_min, pagenumber_max]
+
+    sheet_name = selected_file[-8:-4]
+    main_file_search(filepath=filepath, page_limit=page_limit, sheet_name=sheet_name)
+
+
+def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
     filepath_cities = DIR.joinpath("Bynavne.xlsx")
-    # filepath_cities = DIR.joinpath("sample.xlsx")
+    cities = load_seachwords(filepath=filepath_cities)
+    pages = load_and_split_txt(filepath=filepath, page_limit=page_limit)
+    pages = reorder_sentences(pages=pages)
+    df_matches = search_pages(pages=pages, searchwords=cities, exact_match=EXACT_MATCH)
+    write_df_to_excel(
+        filepath=RESULT_DIR.joinpath(f"{sheet_name}.xlsx"),
+        df=df_matches,
+        sheet_name=sheet_name,
+    )
+    pass
+
+
+def test():
+    # filepath_cities = DIR.joinpath("Bynavne.xlsx")
+    filepath_cities = DIR.joinpath("sample.xlsx")
     cities = load_seachwords(filepath=filepath_cities)
     filepath_statskalender = DIR.joinpath(
         "Statskalender_txt/Statskalender 1950-pages-100.txt"
@@ -238,13 +289,14 @@ def main():
     pages = reorder_sentences(pages=pages)
     # print(pages)
 
-    df_matches = search_pages(pages=pages, searchwords=cities)
+    df_matches = search_pages(pages=pages, searchwords=cities, exact_match=False)
     print(df_matches)
-    # write_df_to_excel(
-    #     filepath=RESULT_DIR.joinpath("1950.xlsx"), df=df_matches, sheet_name="1950"
-    # )
+    write_df_to_excel(
+        filepath=RESULT_DIR.joinpath("1950.xlsx"), df=df_matches, sheet_name="1950"
+    )
 
 
 if __name__ == "__main__":
     main()
+    # test()
 

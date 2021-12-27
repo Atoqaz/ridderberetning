@@ -87,6 +87,18 @@ def test_sentences():
         print(result)
 
 
+def test():
+    import regex
+
+    # bigString = "AGAHKGHKHASNHADKRGHFKXXX_I_AM_THERE_XXXXXMHHGRFSAHGSKHASGKHGKHSKGHAK"
+    # res = regex.findall("(?:I_AM_HERE){e<=1}", bigString)
+    bigString = "AGAHKGHKHASNHADKRGHFKXXX_honekong_XXXXXMHHGRFSAHGSKHASGKHGKHSKGHAK"
+    string = "honsekong"
+    res = regex.search(f"(?:{string}){{e<=1}}", bigString)
+    print(res)
+
+
 if __name__ == "__main__":
     # test_file()
-    test_sentences()
+    # test_sentences()
+    test()
