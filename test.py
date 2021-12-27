@@ -63,15 +63,27 @@ def test_sentences():
         "6.10.28.Bl",
         "6.10.Bl",
         "11/i239),Skibsinspektør* under Grønlands ",
+        "30. ",
+        "1. 29. Holdt",
+        "9.11. 28. Reimer",
+        "Troéls-Smith, Paul Martin, (H.T.H.), (S.",
+        "3),. ",
+        "Oberstløjtnant*, Landsretssagf., Kbhvn.",
     ]
 
     for line in sentences:
         # result = re.search("^[\d\s]+[.][^)]", line)  # xxx 1 num
-        # result = re.findall("^[\d\s]+[\.][\d\s]+", line)  # xxx 2 nums
-        # result = re.search("^[\d\s]+[\.][\d\s]+[\.][\d\s]+", line)  # xxx all 3 nums
+        # result = re.findall("^[\d\s]+[\.][\d\s]+[\.]", line)  # xxx 2 nums
+        # result = re.search("^[\d\s]+[\.][\d\s]+[\.][\d\s]+[\.]", line)  # xxx all 3 nums
 
         # result = re.search("^(â€”)[\s]", line)  # Line (Hyphen)
         # result = re.search("[\.][\\n]$", line)  # dot
+        # result = re.search("[^\,][\.]$", line)  # dot
+        result = bool(re.search("[^\,][.]$", line)) or bool(
+            re.search("[^\,][.][\s]$", line)
+        )
+        # result = len(re.findall("[\(]", line))  # count parenthases
+        # result = len(re.findall("[\)]", line))  # count parenthases
         print(result)
 
 

@@ -78,39 +78,94 @@ def reorder_sentences(pages: dict):
         # Dynamic array of every sentence. 
         # Sentence should have state (Start, End)
         # Sentence should have indication of 
+
     """
-    # for page_number, page in pages.items():
-    #     pass
+    for page_number, page in pages.items():
+        lines = page.split("\n")
+        ordered_page = ""
+        list_of_sentences = []  # [Sentence, start type, complete sentence?]
+        start = True
+        for line in lines:
+            if line == "":
+                continue  # Skip empty lines
+            line = line.replace("\xad", "")  # Replace unnesserary characters
+            line_start, line_period = sentence_type(line=line)
+            if start and (line_start != "other"):
+                start = False
+            elif start and (line_start == "other"):
+                ordered_page += line + "\n"
+
+            if line_start == "num3":
+                list_of_sentences.append([line, line_start, line_period])
+            elif line_start == "num2":
+                # Add to first non complete sentence that starts with one number
+                for sen in list_of_sentences:
+                    if sen[2] == False and sen[1] == "num1":
+                        sen[0] += line
+                        sen[1] = "num3"
+                        sen[2] = line_period
+                        break
+                else:
+                    list_of_sentences.append([line, line_start, line_period])
+            elif line_start == "num1":
+                list_of_sentences.append([line, line_start, False])
+            elif line_start == "hyphen":
+                # TODO: Add numbers for previous date
+                list_of_sentences.append([line, line_start, line_period])
+            elif start == False and line_start == "other":
+                for sen in list_of_sentences:
+                    if sen[2] == False and (sen[1] == "num3" or sen[1] == "hyphen"):
+                        sen[0] += line
+                        sen[2] = line_period
+                        break
+                else:
+                    list_of_sentences.append([line, line_start, line_period])
+
+            # print(ordered_page)
+
+            # print([line, line_start, line_period])
+            # if linenum > 10:
+            #     break
+        for sen in list_of_sentences:
+            # print(sen)
+            ordered_page += sen[0] + "\n"
+
+        pages[page_number] = ordered_page
+
     return pages
 
 
-def sentence_type(sentence: str):
+def sentence_type(line: str):
     """ Detect type of sentence, so one can act on it """
-    num1 = bool(
-        re.search("^[\d\s]+[.][^)]", sentence)
-    )  # Starts with a number and period
+    num1 = bool(re.search("^[\d\s]+[.][^)]", line))  # Starts with a number and period
     num2 = bool(
-        re.search("^[\d\s]+[\.][\d\s]+", sentence)
+        re.search("^[\d\s]+[\.][\d\s]+[\.]", line)
     )  # Starts with 2 numbers and period
     num3 = bool(
-        re.search("^[\d\s]+[\.][\d\s]+[\.][\d\s]+", sentence)
+        re.search("^[\d\s]+[\.][\d\s]+[\.][\d\s]+[\.]", line)
     )  # Starts with 3 numbers and period
-    hyphen = bool(re.search("^—\s", sentence))  # Starts with "— "
-    period = bool(re.search("[.][\\n]$", sentence))  # Ends with ".\n"
+    hyphen = bool(re.search("^—\s", line))  # Starts with "— "
+    period = bool(re.search("[^\,A-Z][.]$", line)) or bool(
+        re.search("[^\,A-Z][.][\s]$", line)
+    )  # Ends with and "." and does not contain "," or capital letters right before
+    # left_parentheses = len(re.findall("[\(]", line))  # Count ( parentheses
+    # right_parentheses = len(re.findall("[\)]", line))  # Count ) parentheses
 
+    end = False
     if num1:
         if num3:
-            return "num3"
+            start = "num3"  # Starts with 3 numbers
         elif num2:
-            return "num2"
+            start = "num2"  # Starts with 2 numbers
         else:
-            return "num1"
+            start = "num1"  # Starts with 1 number
     elif hyphen:
-        return "hyphen"
-    elif period:
-        return "period"
+        start = "hyphen"
     else:
-        return "middle"
+        start = "other"
+    if period:
+        end = True
+    return start, end  # , left_parentheses - right_parentheses
 
 
 def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
@@ -127,7 +182,7 @@ def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
     )  # Initialize array of size: rows, columns
 
     for page_number, page in tqdm(pages.items()):
-        sentences = page.split("\n\n")
+        sentences = page.split("\n")
         number_of_sentences_on_page = len(sentences)
         title = ""
         header_pages = ""
@@ -139,6 +194,7 @@ def search_pages(pages: dict, searchwords: np.array, header_rows_max: int = 5):
                     header_pages = sentence
                 elif title == "":
                     title = sentence
+
             for word in searchwords:
                 if word in sentence:
                     matching_words_info = np.append(
@@ -171,17 +227,19 @@ def write_df_to_excel(filepath: Path, df: pd.DataFrame, sheet_name: str):
 
 def main():
     filepath_cities = DIR.joinpath("Bynavne.xlsx")
+    # filepath_cities = DIR.joinpath("sample.xlsx")
     cities = load_seachwords(filepath=filepath_cities)
     filepath_statskalender = DIR.joinpath(
         "Statskalender_txt/Statskalender 1950-pages-100.txt"
-        # "Statskalender_txt/Statskalender 1950.txt"
+        # "test/txt_vars_line_0.6.txt"
     )
 
     pages = load_and_split_txt(filepath_statskalender)  # , page_limit=[48, 245])
     pages = reorder_sentences(pages=pages)
-    print(pages[2])
+    # print(pages)
 
-    # df_matches = search_pages(pages=pages, searchwords=cities)
+    df_matches = search_pages(pages=pages, searchwords=cities)
+    print(df_matches)
     # write_df_to_excel(
     #     filepath=RESULT_DIR.joinpath("1950.xlsx"), df=df_matches, sheet_name="1950"
     # )
