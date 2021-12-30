@@ -129,18 +129,67 @@ def reorder_sentences(pages: dict):
                 else:
                     list_of_sentences.append([line, line_start, line_period])
 
-            # print(ordered_page)
-
-            # print([line, line_start, line_period])
-            # if linenum > 10:
-            #     break
         for sen in list_of_sentences:
-            # print(sen)
             ordered_page += sen[0] + "\n"
 
         pages[page_number] = ordered_page
 
     return pages
+
+
+def reorder_sentences_on_page(page: str):
+    """ The order of the sentences/lines are not given correct, and thus some logic is applied to fix it 
+        1) Sentence can start with "xx. " where x is a digit. 
+            Count number of occurences.
+        2) Sentence can start with "— "
+        3) Sentence ends with ".\n"
+        Some words stand alone, and should be connected to the next sentence.
+        If sentences are close (i.e. not seperated by \n\n), then they should have priority.
+
+    """
+    lines = page.split("\n")
+    ordered_page = ""
+    list_of_sentences = []  # [Sentence, start type, complete sentence?]
+    start = True
+    for line in lines:
+        if line == "":
+            continue  # Skip empty lines
+        line = line.replace("\xad", "")  # Replace unnesserary characters
+        line_start, line_period = sentence_type(line=line)
+        if start and (line_start != "other"):
+            start = False
+        elif start and (line_start == "other"):
+            ordered_page += line + "\n"
+
+        if line_start == "num3":
+            list_of_sentences.append([line, line_start, line_period])
+        elif line_start == "num2":
+            # Add to first non complete sentence that starts with one number
+            for sen in list_of_sentences:
+                if sen[2] == False and sen[1] == "num1":
+                    sen[0] += line + " | "
+                    sen[1] = "num3"
+                    sen[2] = line_period
+                    break
+            else:
+                list_of_sentences.append([line, line_start, line_period])
+        elif line_start == "num1":
+            list_of_sentences.append([line, line_start, False])
+        elif line_start == "hyphen":
+            # TODO: Add numbers for previous date
+            list_of_sentences.append([line, line_start, line_period])
+        elif start == False and line_start == "other":
+            for sen in list_of_sentences:
+                if sen[2] == False and (sen[1] == "num3" or sen[1] == "hyphen"):
+                    sen[0] += line + " | "
+                    sen[2] = line_period
+                    break
+            else:
+                list_of_sentences.append([line, line_start, line_period])
+
+    for sen in list_of_sentences:
+        ordered_page += sen[0] + "\n"
+    return ordered_page
 
 
 def sentence_type(line: str):
@@ -192,21 +241,39 @@ def search_pages(
     )  # Initialize array of size: rows, columns
 
     for page_number, page in tqdm(pages.items()):
-        sentences = page.split("\n")
-        number_of_sentences_on_page = len(sentences)
+        # If any word in the page, reorder page
+        for word in searchwords:
+            if not exact_match:
+                word_in_sentence = bool(regex.search(f"(?:{word}){{e<=1}}", page))
+            if (exact_match and (word in page)) or (
+                not exact_match and word_in_sentence
+            ):
+                x = 2+2
+                page = reorder_sentences_on_page(page=page)
+                break
+
         title = ""
         header_pages = ""
+        sentences = page.split("\n")
+        number_of_sentences_on_page = len(sentences)
 
         for sentence_index, sentence in enumerate(sentences):
             sentence = sentence.lower()
             if sentence_index <= header_rows_max:
-                if (("[" in sentence) or ("]" in sentence)) and header_pages == "":
+                if (
+                    ("[" in sentence)
+                    or ("]" in sentence)
+                    or (re.search("[0-9]", sentence))
+                ) and header_pages == "":  # or only numeric
                     header_pages = sentence
                 elif title == "":
                     title = sentence
 
             for word in searchwords:
-                word_in_sentence = bool(regex.search(f"(?:{word}){{e<=1}}", sentence))
+                if not exact_match:
+                    word_in_sentence = bool(
+                        regex.search(f"(?:{word}){{e<=1}}", sentence)
+                    )
                 if (exact_match and word in sentence) or (
                     not exact_match and word_in_sentence
                 ):
@@ -270,7 +337,7 @@ def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
     filepath_cities = DIR.joinpath("Bynavne.xlsx")
     cities = load_seachwords(filepath=filepath_cities)
     pages = load_and_split_txt(filepath=filepath, page_limit=page_limit)
-    pages = reorder_sentences(pages=pages)
+    # pages = reorder_sentences(pages=pages)
     df_matches = search_pages(pages=pages, searchwords=cities, exact_match=EXACT_MATCH)
     write_df_to_excel(
         filepath=RESULT_DIR.joinpath(f"{sheet_name}.xlsx"),
@@ -290,7 +357,7 @@ def test():
     )
 
     pages = load_and_split_txt(filepath_statskalender)  # , page_limit=[48, 245])
-    pages = reorder_sentences(pages=pages)
+    # pages = reorder_sentences(pages=pages)
     # print(pages)
 
     df_matches = search_pages(pages=pages, searchwords=cities, exact_match=False)
