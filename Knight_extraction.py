@@ -248,7 +248,6 @@ def search_pages(
             if (exact_match and (word in page)) or (
                 not exact_match and word_in_sentence
             ):
-                x = 2+2
                 page = reorder_sentences_on_page(page=page)
                 break
 
