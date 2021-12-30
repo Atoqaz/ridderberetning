@@ -2,8 +2,9 @@
 Purpose with the file is to generate a list of people from greenland from a list of PDF's who has recieved a medal.
 The list should contain the following, that matches a city name:
 - PDF line number (Done)
-- The line string
-- Possible date
+- The line string (Done)
+- Possible date (Maybe)
+- Only reorder pages with matches
 """
 
 """
@@ -13,8 +14,9 @@ Samlet arbejdstid:
 18 dec: 120 min
 19 dec: 90 min
 27 dec: 240 min
+30 dec: 60 min
 
-Total: 12 h 0 min
+Total: 13 h 0 min
 
 Improvements:
     -> Split pdf in columns, as to not to get interferrence between them.
@@ -241,6 +243,8 @@ def main():
     for file_index, filename in enumerate(txt_files, 1):
         if ".txt" in filename:
             print(f"[{file_index}] {filename}")
+
+    print(f"\nSearch method: Exact Match = {EXACT_MATCH}\n")
 
     # Select file
     while True:
