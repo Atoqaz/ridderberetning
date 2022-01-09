@@ -15,17 +15,21 @@ Samlet arbejdstid:
 19 dec: 90 min
 27 dec: 240 min
 30 dec: 60 min
+09 jan: 120 min
 
-Total: 13 h 0 min
+Total: 15 h 0 min
 
 Improvements:
-    -> Split pdf in columns, as to not to get interferrence between them.
-        - This has to be done dynamically for each page, as separater position varies
-    -> Page title (line 1) in output 
+
 
 Thinks to mind:
     - Abbreviations (København -> Kbhvn)
     - Incorrect reading of words (Hongkong -> Honekong)
+
+    - Multicore speed up (maybe)
+    - Line split " | " is good
+    - Search include period?
+    - Add removal of special characters: Like Ú -> U and Î -> I
 """
 
 
@@ -41,16 +45,41 @@ DIR = Path(__file__).parent
 RESULT_DIR = DIR.joinpath("Statskalender_results")
 TXT_DIR = DIR.joinpath("Statskalender_txt")
 OUTPUT_FILE = DIR.joinpath("Result.xlsx")
-EXACT_MATCH = True  # Not case sensitive
+EXACT_MATCH = True  # Match is not case sensitive
 
 
 def load_seachwords(filepath: Path):
     """ Load excel file with citynames. Extract each unique city from the list. """
-    df_cities = pd.read_excel(filepath, names=["Cities"], header=None)  # Read
-    df_cities["Cities"] = df_cities["Cities"].str.lower()  # Convert to lowercase
+    df_cities = pd.read_excel(filepath, names=["Cities"], header=None)  # Read file
     df_cities = df_cities.drop_duplicates(subset=["Cities"])  # Remove duplicate
     cities = df_cities.to_numpy().T[0]  # Convert to numpy array and transpose
+    # Remove last space in word
+    for word_index, word in enumerate(cities):
+        if word[-1] == " ":
+            cities[word_index] = word[:-1]
     return cities
+
+
+def generate_pertubations(words: np.array):
+    """ Create 1 letter pertubations for each word, for every letter in the word. 
+        Generate word without special characters """
+
+    new_words = []
+    alphabet = "abcdefghijklmnopqrstuvwxyzæøå"
+    count = 0
+    word_pertubation = ""
+    for word in words:
+        for letter_index, letter in enumerate(word):
+            capital = letter.isupper()
+            for char in alphabet:
+                if capital:
+                    char = char.upper()
+                word_pertubation = word[:letter_index] + char + word[letter_index + 1 :]
+                new_words.append(word_pertubation)
+                count += 1
+
+    words = np.append(words, new_words)
+    return np.unique(words)
 
 
 def load_and_split_txt(filepath: Path, page_limit: list = None):
@@ -167,7 +196,7 @@ def reorder_sentences_on_page(page: str):
             # Add to first non complete sentence that starts with one number
             for sen in list_of_sentences:
                 if sen[2] == False and sen[1] == "num1":
-                    sen[0] += line + " | "
+                    sen[0] += line
                     sen[1] = "num3"
                     sen[2] = line_period
                     break
@@ -181,7 +210,7 @@ def reorder_sentences_on_page(page: str):
         elif start == False and line_start == "other":
             for sen in list_of_sentences:
                 if sen[2] == False and (sen[1] == "num3" or sen[1] == "hyphen"):
-                    sen[0] += line + " | "
+                    sen[0] += line
                     sen[2] = line_period
                     break
             else:
@@ -228,6 +257,7 @@ def sentence_type(line: str):
 def search_pages(
     pages: dict, searchwords: np.array, header_rows_max: int = 5, exact_match=False
 ):
+    """ For each page, if a keyword matches a sentence add both to the dataframe """
     columns = [
         "Page Title",
         "Header Pages",
@@ -242,56 +272,69 @@ def search_pages(
 
     for page_number, page in tqdm(pages.items()):
         # If any word in the page, reorder page
+        page_reordered = False
+        temp_page = page.replace("-\n ", "").replace("-\n", "").replace("\n", "")
         for word in searchwords:
             if not exact_match:
                 word_in_sentence = bool(regex.search(f"(?:{word}){{e<=1}}", page))
-            if (exact_match and (word in page)) or (
+            if (exact_match and (word in temp_page)) or (
                 not exact_match and word_in_sentence
             ):
+
                 page = reorder_sentences_on_page(page=page)
+                page_reordered = True
                 break
 
-        title = ""
-        header_pages = ""
-        sentences = page.split("\n")
-        number_of_sentences_on_page = len(sentences)
+        if page_reordered:
+            title = ""
+            header_pages = ""
+            sentences = page.split("\n")
+            number_of_sentences_on_page = len(sentences)
 
-        for sentence_index, sentence in enumerate(sentences):
-            sentence = sentence.lower()
-            if sentence_index <= header_rows_max:
-                if (
-                    ("[" in sentence)
-                    or ("]" in sentence)
-                    or (re.search("[0-9]", sentence))
-                ) and header_pages == "":  # or only numeric
-                    header_pages = sentence
-                elif title == "":
-                    title = sentence
+            for sentence_index, sentence in enumerate(sentences):
+                if sentence_index <= header_rows_max:
+                    if (
+                        ("[" in sentence)
+                        or ("]" in sentence)
+                        or (re.search("[0-9]", sentence))
+                    ) and header_pages == "":  # or only numeric
+                        header_pages = sentence
+                    elif title == "":
+                        title = sentence
 
-            for word in searchwords:
-                if not exact_match:
-                    word_in_sentence = bool(
-                        regex.search(f"(?:{word}){{e<=1}}", sentence)
-                    )
-                if (exact_match and word in sentence) or (
-                    not exact_match and word_in_sentence
-                ):
-                    sentence_location = round(
-                        sentence_index / number_of_sentences_on_page * 100
-                    )
-                    if sentence_location <= 25:
-                        location = 1
-                    elif sentence_location <= 50:
-                        location = 2
-                    elif sentence_location <= 75:
-                        location = 3
-                    else:
-                        location = 4
-                    matching_words_info = np.append(
-                        matching_words_info,
-                        [[title, header_pages, page_number, location, word, sentence,]],
-                        axis=0,
-                    )
+                for word in searchwords:
+                    if not exact_match:
+                        word_in_sentence = bool(
+                            regex.search(f"(?:{word}){{e<=1}}", sentence)
+                        )
+                    if (exact_match and word in sentence) or (
+                        not exact_match and word_in_sentence
+                    ):
+                        sentence_location = round(
+                            sentence_index / number_of_sentences_on_page * 100
+                        )
+                        if sentence_location <= 25:
+                            location = 1
+                        elif sentence_location <= 50:
+                            location = 2
+                        elif sentence_location <= 75:
+                            location = 3
+                        else:
+                            location = 4
+                        matching_words_info = np.append(
+                            matching_words_info,
+                            [
+                                [
+                                    title,
+                                    header_pages,
+                                    page_number,
+                                    location,
+                                    word,
+                                    sentence,
+                                ]
+                            ],
+                            axis=0,
+                        )
 
     df_matches = pd.DataFrame(matching_words_info, columns=columns,)
     df_matches = df_matches.astype({columns[2]: "int32"})
@@ -335,6 +378,7 @@ def main():
 def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
     filepath_cities = DIR.joinpath("Bynavne.xlsx")
     cities = load_seachwords(filepath=filepath_cities)
+    cities = generate_pertubations(words=cities)
     pages = load_and_split_txt(filepath=filepath, page_limit=page_limit)
     # pages = reorder_sentences(pages=pages)
     df_matches = search_pages(pages=pages, searchwords=cities, exact_match=EXACT_MATCH)
@@ -343,27 +387,12 @@ def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
         df=df_matches,
         sheet_name=sheet_name,
     )
-    pass
 
 
 def test():
-    # filepath_cities = DIR.joinpath("Bynavne.xlsx")
-    filepath_cities = DIR.joinpath("sample.xlsx")
+    filepath_cities = DIR.joinpath("Bynavne.xlsx")
     cities = load_seachwords(filepath=filepath_cities)
-    filepath_statskalender = DIR.joinpath(
-        "Statskalender_txt/Statskalender 1950-pages-100.txt"
-        # "test/txt_vars_line_0.6.txt"
-    )
-
-    pages = load_and_split_txt(filepath_statskalender)  # , page_limit=[48, 245])
-    # pages = reorder_sentences(pages=pages)
-    # print(pages)
-
-    df_matches = search_pages(pages=pages, searchwords=cities, exact_match=False)
-    print(df_matches)
-    write_df_to_excel(
-        filepath=RESULT_DIR.joinpath("1950.xlsx"), df=df_matches, sheet_name="1950"
-    )
+    cities = generate_pertubations(words=cities)
 
 
 if __name__ == "__main__":

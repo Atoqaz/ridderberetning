@@ -88,14 +88,31 @@ def test_sentences():
 
 
 def test():
-    import regex
+    # import regex
 
     # bigString = "AGAHKGHKHASNHADKRGHFKXXX_I_AM_THERE_XXXXXMHHGRFSAHGSKHASGKHGKHSKGHAK"
     # res = regex.findall("(?:I_AM_HERE){e<=1}", bigString)
-    bigString = "AGAHKGHKHASNHADKRGHFKXXX_honekong_XXXXXMHHGRFSAHGSKHASGKHGKHSKGHAK"
-    string = "honsekong"
-    res = regex.search(f"(?:{string}){{e<=1}}", bigString)
-    print(res)
+    # bigString = "AGAHKGHKHASNHADKRGHFKXXX_honekong_XXXXXMHHGRFSAHGSKHASGKHGKHSKGHAK"
+    # string = "honsedskong"
+    # res = regex.search(f"(?:{string}){{e<=1}}", bigString)
+    # print(res)
+
+    start = time()
+    # for x in range(1_000_000):
+    A = "abcdefghijklmnopqrstuvwxyzæøå"
+    A = "abcde"
+    index = len(A)
+    # x = # A[: max(0, index - 1)] + "X" + A[index:]
+    for index, letter in enumerate(A):
+        print(f"index: {index}")
+        print(f"letter: {letter}")
+        print(f"{index}: {A[:index]}")
+        # print(f"{index}: {A[: max(0, index - 1)]} - {max(0, index - 1)}")
+        print("Result:", A[: index] + "X" + A[index + 1 :])
+        print("")
+    print(x)
+    end = time()
+    print(end - start)
 
 
 if __name__ == "__main__":
