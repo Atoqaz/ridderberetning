@@ -1,35 +1,14 @@
 """
-Purpose with the file is to generate a list of people from greenland from a list of PDF's who has recieved a medal.
+Purpose with the file is to generate a list of people from greenland, based on their city, from a list of PDF's of those who has recieved a medal.
 The list should contain the following, that matches a city name:
-- PDF line number (Done)
-- The line string (Done)
-- Possible date (Maybe)
-- Only reorder pages with matches
-"""
-
-"""
-Samlet arbejdstid:
-12 dec: 200 min
-16 dec: 70 min
-18 dec: 120 min
-19 dec: 90 min
-27 dec: 240 min
-30 dec: 60 min
-09 jan: 120 min
-
-Total: 15 h 0 min
-
-Improvements:
-
+- PDF line number
+- The line string
 
 Thinks to mind:
-    - Abbreviations (København -> Kbhvn)
-    - Incorrect reading of words (Hongkong -> Honekong)
-
-    - Multicore speed up (maybe)
-    - Line split " | " is good
-    - Search include period?
-    - Add removal of special characters: Like Ú -> U and Î -> I
+    - Abbreviations (København -> Kbhvn) are not accounted for.
+    - Incorrect reading of letters make it difficult.
+    - If word is on 2 seperate lines, it will not be included.
+    - If the word is not capitized correct, it will not be included.
 """
 
 
@@ -42,10 +21,12 @@ import regex
 import os
 
 DIR = Path(__file__).parent
+CITY_DIR = DIR.joinpath("Bynavne.xlsx")
 RESULT_DIR = DIR.joinpath("Statskalender_results")
 TXT_DIR = DIR.joinpath("Statskalender_txt")
-OUTPUT_FILE = DIR.joinpath("Result.xlsx")
-EXACT_MATCH = True  # Match is not case sensitive
+EXACT_MATCH = True  # Obs: Match is not case sensitive
+INCLUDE_PERIOD = True
+ALPHABET = "abcdefghijklmnopqrstuvwxyzæøå"
 
 
 def load_seachwords(filepath: Path):
@@ -65,16 +46,17 @@ def generate_pertubations(words: np.array):
         Generate word without special characters """
 
     new_words = []
-    alphabet = "abcdefghijklmnopqrstuvwxyzæøå"
     count = 0
     word_pertubation = ""
     for word in words:
         for letter_index, letter in enumerate(word):
             capital = letter.isupper()
-            for char in alphabet:
+            for char in ALPHABET:
                 if capital:
                     char = char.upper()
                 word_pertubation = word[:letter_index] + char + word[letter_index + 1 :]
+                if INCLUDE_PERIOD:
+                    word_pertubation = word_pertubation + "."
                 new_words.append(word_pertubation)
                 count += 1
 
@@ -101,69 +83,6 @@ def load_and_split_txt(filepath: Path, page_limit: list = None):
             if (key < page_limit[0]) or (key > page_limit[1]):
                 del pages[key]
         return pages
-
-
-def reorder_sentences(pages: dict):
-    """ The order of the sentences/lines are not given correct, and thus some logic is applied to fix it 
-        1) Sentence can start with "xx. " where x is a digit. 
-            Count number of occurences.
-        2) Sentence can start with "— "
-        3) Sentence ends with ".\n"
-        Some words stand alone, and should be connected to the next sentence.
-        If sentences are close (i.e. not seperated by \n\n), then they should have priority.
-
-        # Dynamic array of every sentence. 
-        # Sentence should have state (Start, End)
-        # Sentence should have indication of 
-
-    """
-    for page_number, page in pages.items():
-        lines = page.split("\n")
-        ordered_page = ""
-        list_of_sentences = []  # [Sentence, start type, complete sentence?]
-        start = True
-        for line in lines:
-            if line == "":
-                continue  # Skip empty lines
-            line = line.replace("\xad", "")  # Replace unnesserary characters
-            line_start, line_period = sentence_type(line=line)
-            if start and (line_start != "other"):
-                start = False
-            elif start and (line_start == "other"):
-                ordered_page += line + "\n"
-
-            if line_start == "num3":
-                list_of_sentences.append([line, line_start, line_period])
-            elif line_start == "num2":
-                # Add to first non complete sentence that starts with one number
-                for sen in list_of_sentences:
-                    if sen[2] == False and sen[1] == "num1":
-                        sen[0] += line
-                        sen[1] = "num3"
-                        sen[2] = line_period
-                        break
-                else:
-                    list_of_sentences.append([line, line_start, line_period])
-            elif line_start == "num1":
-                list_of_sentences.append([line, line_start, False])
-            elif line_start == "hyphen":
-                # TODO: Add numbers for previous date
-                list_of_sentences.append([line, line_start, line_period])
-            elif start == False and line_start == "other":
-                for sen in list_of_sentences:
-                    if sen[2] == False and (sen[1] == "num3" or sen[1] == "hyphen"):
-                        sen[0] += line
-                        sen[2] = line_period
-                        break
-                else:
-                    list_of_sentences.append([line, line_start, line_period])
-
-        for sen in list_of_sentences:
-            ordered_page += sen[0] + "\n"
-
-        pages[page_number] = ordered_page
-
-    return pages
 
 
 def reorder_sentences_on_page(page: str):
@@ -376,11 +295,10 @@ def main():
 
 
 def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
-    filepath_cities = DIR.joinpath("Bynavne.xlsx")
+    filepath_cities = CITY_DIR
     cities = load_seachwords(filepath=filepath_cities)
     cities = generate_pertubations(words=cities)
     pages = load_and_split_txt(filepath=filepath, page_limit=page_limit)
-    # pages = reorder_sentences(pages=pages)
     df_matches = search_pages(pages=pages, searchwords=cities, exact_match=EXACT_MATCH)
     write_df_to_excel(
         filepath=RESULT_DIR.joinpath(f"{sheet_name}.xlsx"),
@@ -389,13 +307,6 @@ def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
     )
 
 
-def test():
-    filepath_cities = DIR.joinpath("Bynavne.xlsx")
-    cities = load_seachwords(filepath=filepath_cities)
-    cities = generate_pertubations(words=cities)
-
-
 if __name__ == "__main__":
     main()
-    # test()
 
