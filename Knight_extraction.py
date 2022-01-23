@@ -153,8 +153,6 @@ def sentence_type(line: str):
     period = bool(re.search("[^\,A-Z][.]$", line)) or bool(
         re.search("[^\,A-Z][.][\s]$", line)
     )  # Ends with and "." and does not contain "," or capital letters right before
-    # left_parentheses = len(re.findall("[\(]", line))  # Count ( parentheses
-    # right_parentheses = len(re.findall("[\)]", line))  # Count ) parentheses
 
     end = False
     if num1:
