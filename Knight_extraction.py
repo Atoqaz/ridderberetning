@@ -11,14 +11,11 @@ Thinks to mind:
     - If the word is not capitized correct, it will not be included.
 """
 
-
+import os
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from tqdm import tqdm
-import re
-import regex
-import os
+from pathlib import Path
 
 DIR = Path(__file__).parent
 CITY_DIR = DIR.joinpath("Bynavne.xlsx")
@@ -30,9 +27,10 @@ ALPHABET = "abcdefghijklmnopqrstuvwxyzæøå"
 
 
 def load_seachwords(filepath: Path):
-    """ Load excel file with citynames. Extract each unique city from the list. """
+    """Load excel file with citynames. Extract each unique city from the list."""
     df_cities = pd.read_excel(filepath, names=["Cities"], header=None)  # Read file
     df_cities = df_cities.drop_duplicates(subset=["Cities"])  # Remove duplicate
+    df_cities = df_cities.dropna()
     cities = df_cities.to_numpy().T[0]  # Convert to numpy array and transpose
     # Remove last space in word
     for word_index, word in enumerate(cities):
@@ -42,8 +40,8 @@ def load_seachwords(filepath: Path):
 
 
 def generate_pertubations(words: np.array):
-    """ Create 1 letter pertubations for each word, for every letter in the word. 
-        Generate word without special characters """
+    """Create 1 letter pertubations for each word, for every letter in the word.
+    Generate word without special characters"""
 
     new_words = []
     count = 0
@@ -64,18 +62,24 @@ def generate_pertubations(words: np.array):
     return np.unique(words)
 
 
-def load_and_split_txt(filepath: Path, page_limit: list = None):
+def load_and_split_txt(filepath: Path):
     pages = {}
-    page_content = ""
-    page_number = 2
+    page_number = 0
     with open(filepath, "r", encoding="utf-8") as file:
         for line in file:
-            if "\x0c" in line:  # Symbol used for page ending
-                pages[page_number] = page_content
-                page_content = line.split("\x0c")[1]
-                page_number += 1
+            if line == "\n":
+                pass
+            elif (line[0] == "\x0c") and (
+                line[-2:] == "\x0c\n"
+            ):  # Symbol used for page number in start of page
+                page_number = int(line[1:-2])
+                pages[page_number] = ""
             else:
-                page_content += line
+                pages[page_number] += line
+    return pages
+
+
+def limit_pages(pages: dict, page_limit: list = None):
     if page_limit == None:
         return pages
     else:
@@ -85,96 +89,36 @@ def load_and_split_txt(filepath: Path, page_limit: list = None):
         return pages
 
 
-def reorder_sentences_on_page(page: str):
-    """ The order of the sentences/lines are not given correct, and thus some logic is applied to fix it 
-        1) Sentence can start with "xx. " where x is a digit. 
-            Count number of occurences.
-        2) Sentence can start with "— "
-        3) Sentence ends with ".\n"
-        Some words stand alone, and should be connected to the next sentence.
-        If sentences are close (i.e. not seperated by \n\n), then they should have priority.
-
+def set_header(sentence: str, header_pages: str, title: str):
+    """Extract first and last number:
+    Set headerpages to f"[{first} - {last}]"
+    Set title to rest
     """
-    lines = page.split("\n")
-    ordered_page = ""
-    list_of_sentences = []  # [Sentence, start type, complete sentence?]
-    start = True
-    for line in lines:
-        if line == "":
-            continue  # Skip empty lines
-        line = line.replace("\xad", "")  # Replace unnesserary characters
-        line_start, line_period = sentence_type(line=line)
-        if start and (line_start != "other"):
-            start = False
-        elif start and (line_start == "other"):
-            ordered_page += line + "\n"
-
-        if line_start == "num3":
-            list_of_sentences.append([line, line_start, line_period])
-        elif line_start == "num2":
-            # Add to first non complete sentence that starts with one number
-            for sen in list_of_sentences:
-                if sen[2] == False and sen[1] == "num1":
-                    sen[0] += line
-                    sen[1] = "num3"
-                    sen[2] = line_period
-                    break
-            else:
-                list_of_sentences.append([line, line_start, line_period])
-        elif line_start == "num1":
-            list_of_sentences.append([line, line_start, False])
-        elif line_start == "hyphen":
-            # TODO: Add numbers for previous date
-            list_of_sentences.append([line, line_start, line_period])
-        elif start == False and line_start == "other":
-            for sen in list_of_sentences:
-                if sen[2] == False and (sen[1] == "num3" or sen[1] == "hyphen"):
-                    sen[0] += line
-                    sen[2] = line_period
-                    break
-            else:
-                list_of_sentences.append([line, line_start, line_period])
-
-    for sen in list_of_sentences:
-        ordered_page += sen[0] + "\n"
-    return ordered_page
-
-
-def sentence_type(line: str):
-    """ Detect type of sentence, so one can act on it """
-    num1 = bool(re.search("^[\d\s]+[.][^)]", line))  # Starts with a number and period
-    num2 = bool(
-        re.search("^[\d\s]+[\.][\d\s]+[\.]", line)
-    )  # Starts with 2 numbers and period
-    num3 = bool(
-        re.search("^[\d\s]+[\.][\d\s]+[\.][\d\s]+[\.]", line)
-    )  # Starts with 3 numbers and period
-    hyphen = bool(re.search("^—\s", line))  # Starts with "— "
-    period = bool(re.search("[^\,A-Z][.]$", line)) or bool(
-        re.search("[^\,A-Z][.][\s]$", line)
-    )  # Ends with and "." and does not contain "," or capital letters right before
-
-    end = False
-    if num1:
-        if num3:
-            start = "num3"  # Starts with 3 numbers
-        elif num2:
-            start = "num2"  # Starts with 2 numbers
+    if (header_pages == "") or (title == ""):
+        first_non_digit_pos = None
+        last_non_digit_pos = None
+        for pos, char in enumerate(sentence):
+            if (not char.isdigit()) and (first_non_digit_pos is None):
+                first_non_digit_pos = pos
+        for pos, char in enumerate(sentence[::-1]):
+            if (not char.isdigit()) and (last_non_digit_pos is None):
+                last_non_digit_pos = len(sentence) - pos
+                break
+        if pos <= 3:  # max 3 digits
+            header_pages = (
+                f"{sentence[:first_non_digit_pos]}-{sentence[last_non_digit_pos:]}"
+            )
+            title = f"{sentence[first_non_digit_pos: last_non_digit_pos]}"
         else:
-            start = "num1"  # Starts with 1 number
-    elif hyphen:
-        start = "hyphen"
-    else:
-        start = "other"
-    if period:
-        end = True
-    return start, end  # , left_parentheses - right_parentheses
+            header_pages = sentence[:first_non_digit_pos]
+            title = f"{sentence[first_non_digit_pos:]}"
+    return header_pages, title
 
 
 def search_pages(
     pages: dict, searchwords: np.array, header_rows_max: int = 5, exact_match=False
 ):
-    """ For each page, if a keyword matches a sentence add both to the dataframe """
+    """For each page, if a keyword matches a sentence add both to the dataframe"""
     columns = [
         "Page Title",
         "Header Pages",
@@ -188,56 +132,30 @@ def search_pages(
     )  # Initialize array of size: rows, columns
 
     for page_number, page in tqdm(pages.items()):
-        # If any word in the page, reorder page
-        page_reordered = False
-        temp_page = page.replace("-\n ", "").replace("-\n", "").replace("\n", "")
+        # Screening
+        word_in_page = False
         for word in searchwords:
-            if not exact_match:
-                word_in_sentence = bool(regex.search(f"(?:{word}){{e<=1}}", page))
-            if (exact_match and (word in temp_page)) or (
-                not exact_match and word_in_sentence
-            ):
-
-                page = reorder_sentences_on_page(page=page)
-                page_reordered = True
+            if word in page:
+                word_in_page = True  # Effiency?
                 break
 
-        if page_reordered:
+        # Detailed extraction
+        if word_in_page:
             title = ""
             header_pages = ""
             sentences = page.split("\n")
             number_of_sentences_on_page = len(sentences)
-
             for sentence_index, sentence in enumerate(sentences):
-                if sentence_index <= header_rows_max:
-                    if (
-                        ("[" in sentence)
-                        or ("]" in sentence)
-                        or (re.search("[0-9]", sentence))
-                    ) and header_pages == "":  # or only numeric
-                        header_pages = sentence
-                    elif title == "":
-                        title = sentence
+                header_pages, title = set_header(
+                    sentence=sentence, header_pages=header_pages, title=title
+                )
 
                 for word in searchwords:
-                    if not exact_match:
-                        word_in_sentence = bool(
-                            regex.search(f"(?:{word}){{e<=1}}", sentence)
-                        )
-                    if (exact_match and word in sentence) or (
-                        not exact_match and word_in_sentence
-                    ):
+                    if word in sentence:
                         sentence_location = round(
                             sentence_index / number_of_sentences_on_page * 100
                         )
-                        if sentence_location <= 25:
-                            location = 1
-                        elif sentence_location <= 50:
-                            location = 2
-                        elif sentence_location <= 75:
-                            location = 3
-                        else:
-                            location = 4
+                        location = sentence_location // 25
                         matching_words_info = np.append(
                             matching_words_info,
                             [
@@ -252,27 +170,21 @@ def search_pages(
                             ],
                             axis=0,
                         )
-
-    df_matches = pd.DataFrame(matching_words_info, columns=columns,)
+    df_matches = pd.DataFrame(
+        matching_words_info,
+        columns=columns,
+    )
     df_matches = df_matches.astype({columns[2]: "int32"})
     df_matches = df_matches.sort_values(by=[columns[2], columns[3]], ascending=True)
     return df_matches
 
 
 def write_df_to_excel(filepath: Path, df: pd.DataFrame, sheet_name: str):
-    """ Convert the list of results to Excel """
+    """Convert the list of results to Excel"""
     df.to_excel(filepath, sheet_name=sheet_name, index=False)
 
 
-def main():
-    txt_files = [x for x in os.listdir(TXT_DIR) if ".txt" in x]
-    for file_index, filename in enumerate(txt_files, 1):
-        if ".txt" in filename:
-            print(f"[{file_index}] {filename}")
-
-    print(f"\nSearch method: Exact Match = {EXACT_MATCH}\n")
-
-    # Select file
+def get_user_input(txt_files):
     while True:
         try:
             selected_file_index = input("Select file: ")
@@ -288,7 +200,26 @@ def main():
     pagenumber_max = int(input("Select ending pdf pagenumber: "))
     page_limit = [pagenumber_min, pagenumber_max]
 
-    sheet_name = selected_file[-8:-4]
+    return filepath, page_limit
+
+
+def list_files():
+    txt_files = [x for x in os.listdir(TXT_DIR) if ".txt" in x]
+    for file_index, filename in enumerate(txt_files, 1):
+        if ".txt" in filename:
+            print(f"[{file_index}] {filename}")
+    return txt_files
+
+
+def main():
+    txt_files = list_files()
+    print(f"\nSearch method: Exact Match = {EXACT_MATCH}\n")
+    filepath, page_limit = get_user_input(txt_files)
+    # filepath = TXT_DIR.joinpath(txt_files[0]) #TODO: Test
+    # page_limit = [44, 169] #TODO: Test
+    # sheet_name = "1901" #TODO: Test
+
+    sheet_name = filepath.stem[-4:]  # Year: Assumes last for chars are the year
     main_file_search(filepath=filepath, page_limit=page_limit, sheet_name=sheet_name)
 
 
@@ -296,7 +227,9 @@ def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
     filepath_cities = CITY_DIR
     cities = load_seachwords(filepath=filepath_cities)
     cities = generate_pertubations(words=cities)
-    pages = load_and_split_txt(filepath=filepath, page_limit=page_limit)
+    pages = load_and_split_txt(filepath=filepath)
+    if page_limit:
+        pages = limit_pages(pages=pages, page_limit=page_limit)
     df_matches = search_pages(pages=pages, searchwords=cities, exact_match=EXACT_MATCH)
     write_df_to_excel(
         filepath=RESULT_DIR.joinpath(f"{sheet_name}.xlsx"),
@@ -307,4 +240,3 @@ def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
 
 if __name__ == "__main__":
     main()
-
