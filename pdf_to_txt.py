@@ -3,9 +3,8 @@ For each file in the pdf folder, convert it to txt if it has not been done alrea
 This makes the file faster to seach through.
 """
 
-# %%
-
 import os
+import re
 from tqdm import tqdm
 from pathlib import Path
 
@@ -13,8 +12,6 @@ from pathlib import Path
 DIR = Path(__file__).parent
 PDF_DIR = DIR.joinpath("Statskalender")
 TXT_DIR = DIR.joinpath("Statskalender_txt")
-# PDF_DIR = DIR.joinpath("test2")
-# TXT_DIR = DIR.joinpath("test")
 
 import fitz
 
@@ -32,6 +29,7 @@ def replace_word_chars(word: str, str_remove: list):
 def process_page(page: tuple, offset_x: float, offset_y: float):
     page_text = ""
     x_old, y_old = 0, 0
+    word_old = ""
     # (x0, y0, x1, y1, "word", block_no, line_no, word_no)
     # https://pymupdf.readthedocs.io/en/latest/textpage.html#TextPage.extractWORDS
     for word in page.get_text("words"):
@@ -43,6 +41,7 @@ def process_page(page: tuple, offset_x: float, offset_y: float):
             and (not any(x in word[4] for x in [",", "("]))
         ):
             page_text += "\n"
+            # pass
         elif abs(x_old - x) <= offset_x:
             page_text += " "
 
@@ -52,14 +51,45 @@ def process_page(page: tuple, offset_x: float, offset_y: float):
     return page_text
 
 
+def reorder_sentence(page_text: str):
+    """Make sentences stay on one line. Sentence starts with date or dash (—). Otherwise append
+
+    Args:
+        page_text (str): Text for the page
+
+    Returns:
+        str: reorderet sentences
+    """
+    sentences = page_text.split("\n")
+    page_text_new = ""
+    first_sentence = True
+    for sentence in sentences:
+        if sentence == "":
+            pass
+        elif first_sentence:
+            page_text_new += sentence
+            first_sentence = False
+        elif sentence[0] == "\x0c":
+            page_text_new += sentence
+        elif re.match(
+            r"([\d]+[.][\s]*){2,3}|(— )|(\d\d\d\d[.]? [.]?[\d]{1,2}[\s.])", sentence
+        ):
+            page_text_new += "\n" + sentence.rstrip("\n")
+        else:
+            page_text_new += sentence
+    return page_text_new
+
+
 def extract_text_from_pdf(filepath_pdf):
     text = ""
     with fitz.open(filepath_pdf) as pdf:
         for page_num in tqdm(range(len(pdf))):
-            # print(f"page_num: {page_num}")
-            text += f"\n\x0c{page_num+1}\x0c"
+            text += f"\n\x0c{page_num+1}\x0c\n"  # pagenumber in separate line
+            if page_num + 1 == 132:
+                print("page")
             page = pdf[page_num]
             page_text = process_page(page=page, offset_x=100, offset_y=5)
+            page_text = reorder_sentence(page_text)
             text += page_text
     return text
 

@@ -21,7 +21,6 @@ DIR = Path(__file__).parent
 CITY_DIR = DIR.joinpath("Bynavne.xlsx")
 RESULT_DIR = DIR.joinpath("Statskalender_results")
 TXT_DIR = DIR.joinpath("Statskalender_txt")
-EXACT_MATCH = True  # Obs: Match is not case sensitive
 INCLUDE_PERIOD = True
 ALPHABET = "abcdefghijklmnopqrstuvwxyzæøå"
 
@@ -73,8 +72,11 @@ def load_and_split_txt(filepath: Path):
                 line[-2:] == "\x0c\n"
             ):  # Symbol used for page number in start of page
                 page_number = int(line[1:-2])
+
                 pages[page_number] = ""
             else:
+                # if page_number not in pages:
+                #     pages[page_number] = ""
                 pages[page_number] += line
     return pages
 
@@ -89,7 +91,7 @@ def limit_pages(pages: dict, page_limit: list = None):
         return pages
 
 
-def set_header(sentence: str, header_pages: str, title: str):
+def set_header(sentence: str, header_pages: str = "", title: str = ""):
     """Extract first and last number:
     Set headerpages to f"[{first} - {last}]"
     Set title to rest
@@ -97,27 +99,39 @@ def set_header(sentence: str, header_pages: str, title: str):
     if (header_pages == "") or (title == ""):
         first_non_digit_pos = None
         last_non_digit_pos = None
-        for pos, char in enumerate(sentence):
-            if (not char.isdigit()) and (first_non_digit_pos is None):
-                first_non_digit_pos = pos
-        for pos, char in enumerate(sentence[::-1]):
-            if (not char.isdigit()) and (last_non_digit_pos is None):
-                last_non_digit_pos = len(sentence) - pos
-                break
-        if pos <= 3:  # max 3 digits
-            header_pages = (
-                f"{sentence[:first_non_digit_pos]}-{sentence[last_non_digit_pos:]}"
-            )
-            title = f"{sentence[first_non_digit_pos: last_non_digit_pos]}"
+        if "[" in sentence:
+            first_non_digit_pos = sentence.find("[")
+            last_non_digit_pos = sentence.find("]")
+            header_pages = sentence[
+                first_non_digit_pos + 1 : last_non_digit_pos
+            ].replace("—", "-")
+            if first_non_digit_pos < 2:
+                last_position = -1
+                for pos, char in enumerate(sentence[last_non_digit_pos + 1 :]):
+                    if char.isdigit():
+                        last_position = pos + last_non_digit_pos + 1
+                        break
+                title = sentence[last_non_digit_pos + 1 : last_position]
+            else:
+                title = sentence[:first_non_digit_pos]
         else:
-            header_pages = sentence[:first_non_digit_pos]
-            title = f"{sentence[first_non_digit_pos:]}"
+
+            for pos, (char, char_reverse) in enumerate(zip(sentence, sentence[::-1])):
+                if (not char.isdigit()) and (first_non_digit_pos is None):
+                    first_non_digit_pos = pos
+                if (not char_reverse.isdigit()) and (last_non_digit_pos is None):
+                    last_non_digit_pos = len(sentence) - pos
+
+            first_num = sentence[:first_non_digit_pos]
+            second_num = sentence[last_non_digit_pos:]
+            header_pages = f"{first_num}-{second_num}"
+            pos = sentence.find(str(second_num))
+            title = f"{sentence[first_non_digit_pos: pos]}"
+
     return header_pages, title
 
 
-def search_pages(
-    pages: dict, searchwords: np.array, header_rows_max: int = 5, exact_match=False
-):
+def search_pages(pages: dict, searchwords: np.array):
     """For each page, if a keyword matches a sentence add both to the dataframe"""
     columns = [
         "Page Title",
@@ -213,13 +227,8 @@ def list_files():
 
 def main():
     txt_files = list_files()
-    print(f"\nSearch method: Exact Match = {EXACT_MATCH}\n")
     filepath, page_limit = get_user_input(txt_files)
-    # filepath = TXT_DIR.joinpath(txt_files[0]) #TODO: Test
-    # page_limit = [44, 169] #TODO: Test
-    # sheet_name = "1901" #TODO: Test
-
-    sheet_name = filepath.stem[-4:]  # Year: Assumes last for chars are the year
+    sheet_name = filepath.stem.split(" ")[-1]  # Year: Assumes name seperated by space
     main_file_search(filepath=filepath, page_limit=page_limit, sheet_name=sheet_name)
 
 
@@ -228,9 +237,10 @@ def main_file_search(filepath: Path, page_limit: list, sheet_name: str):
     cities = load_seachwords(filepath=filepath_cities)
     cities = generate_pertubations(words=cities)
     pages = load_and_split_txt(filepath=filepath)
+
     if page_limit:
         pages = limit_pages(pages=pages, page_limit=page_limit)
-    df_matches = search_pages(pages=pages, searchwords=cities, exact_match=EXACT_MATCH)
+    df_matches = search_pages(pages=pages, searchwords=cities)
     write_df_to_excel(
         filepath=RESULT_DIR.joinpath(f"{sheet_name}.xlsx"),
         df=df_matches,
