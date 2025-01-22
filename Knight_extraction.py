@@ -82,7 +82,7 @@ def load_and_split_txt(filepath: Path):
 
 
 def limit_pages(pages: dict, page_limit: list = None):
-    if page_limit == None:
+    if page_limit is None:
         return pages
     else:
         for key in list(pages.keys()):

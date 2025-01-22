@@ -29,7 +29,6 @@ def replace_word_chars(word: str, str_remove: list):
 def process_page(page: tuple, offset_x: float, offset_y: float):
     page_text = ""
     x_old, y_old = 0, 0
-    word_old = ""
     # (x0, y0, x1, y1, "word", block_no, line_no, word_no)
     # https://pymupdf.readthedocs.io/en/latest/textpage.html#TextPage.extractWORDS
     for word in page.get_text("words"):
@@ -85,8 +84,6 @@ def extract_text_from_pdf(filepath_pdf):
     with fitz.open(filepath_pdf) as pdf:
         for page_num in tqdm(range(len(pdf))):
             text += f"\n\x0c{page_num+1}\x0c\n"  # pagenumber in separate line
-            if page_num + 1 == 132:
-                print("page")
             page = pdf[page_num]
             page_text = process_page(page=page, offset_x=100, offset_y=5)
             page_text = reorder_sentence(page_text)
